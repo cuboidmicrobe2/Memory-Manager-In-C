@@ -11,6 +11,7 @@ typedef struct Block {
     struct Block* next;
 } Block;
 
+void defragment_memory();
 void mem_init(size_t size);
 void* mem_alloc(size_t size);
 void mem_free(void* block);
