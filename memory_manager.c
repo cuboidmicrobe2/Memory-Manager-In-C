@@ -1,8 +1,31 @@
 #include "memory_manager.h"
 
-void* memory = NULL;
+void* memoryPool = NULL;
 size_t memorySize = 0;
-Block* firstBlock = NULL;
+unsigned char* start = NULL;
+unsigned char* end = NULL;
+
+/// @brief sets a bit to 1
+/// @param array
+/// @param index
+void set_bit(unsigned char* array, size_t index) {
+    array[index / 8] |= (1 << (index % 8));
+}
+
+/// @brief sets a bit to 0
+/// @param array
+/// @param index
+void clear_bit(unsigned char* array, size_t index) {
+    array[index / 8] &= ~(1 << (index % 8));
+}
+
+/// @brief returns bit
+/// @param array
+/// @param index
+/// @return
+bool get_bit(const unsigned char* array, size_t index) {
+    return array[index / 8] & (1 << (index % 8));
+}
 
 /**
  * Initializes the memory manager with a given size.
@@ -10,9 +33,10 @@ Block* firstBlock = NULL;
  * @param size The size of the memory pool to allocate.
  */
 void mem_init(size_t size) {
-    memory = malloc(size);
+    memoryPool = malloc(size);
     memorySize = size;
-    firstBlock = NULL;
+    start = calloc((size + 7) / 8, sizeof(char));
+    end = calloc((size + 7) / 8, sizeof(char));
 }
 
 /**
@@ -23,58 +47,28 @@ void mem_init(size_t size) {
  * fails.
  */
 void* mem_alloc(size_t size) {
-    if (memory == NULL || size == 0 || size > memorySize) {
-        return NULL;
-    }
+    if (size == 0 || size > memorySize) return NULL;
+    size_t nrOfEmptySegments = 0;
+    bool isEmpty = true;
 
-    Block* newBlock = (Block*)malloc(sizeof(Block));
-    if (!newBlock) return NULL;
-
-    if (!firstBlock) {
-        newBlock->address = memory;
-        newBlock->size = size;
-        newBlock->next = NULL;
-
-        return newBlock->address;
-    }
-
-    Block* current = firstBlock;
-    if ((current->address - memory) >= size) {
-        newBlock->next = firstBlock;
-        firstBlock = newBlock;
-        newBlock->address = memory;
-        newBlock->size = size;
-
-        return newBlock->address;
-    }
-
-    do {
-        // Free space between blocks
-        size_t spaceBetween = (current->next->address - memory) -
-                              ((current->address - memory) + current->size);
-
-        if (spaceBetween >= size) {
-            newBlock->next = current->next;
-            current->next = newBlock;
-            newBlock->size = size;
-            newBlock->address = current->address + current->size;
-
-            return newBlock->address;
+    for (size_t i = 0; i < memorySize; i++) {
+        if (get_bit(start, i)) {
+            isEmpty = false;
         }
 
-        current = current->next;
-    } while (current->next);
+        nrOfEmptySegments = (isEmpty) ? nrOfEmptySegments + 1 : 0;
+        if (nrOfEmptySegments >= size) {
+            set_bit(start, i - size + 1);
+            set_bit(end, i);
+            return memoryPool + i - size + 1;
+        }
 
-    if (((current->address - memory) + (current->size + size)) < memorySize) {
-        current->next = newBlock;
-        newBlock->address = (current->address + current->size);
-        current->size = size;
-        current->next = NULL;
-
-        return newBlock->address;
+        if (get_bit(end, i) == true) {
+            isEmpty = true;
+        }
     }
 
-    return NULL;  // Ber till Gud
+    return NULL;
 }
 
 /**
@@ -83,28 +77,14 @@ void* mem_alloc(size_t size) {
  * @param block A pointer to the memory block to free.
  */
 void mem_free(void* block) {
-    if (!block || !firstBlock) {
+    if(!block) return;
+    size_t index = block - memoryPool;
+    if (index >= memorySize || get_bit(start, index) != 1) {
         return;
     }
-
-    Block* current = firstBlock;
-    Block* previous = NULL;
-
-    while (current) {
-        if (current->address == block) {
-            if (previous) {
-                previous->next = current->next;
-            } else {
-                firstBlock = current->next;
-            }
-
-            free(current);
-            return;
-        }
-
-        previous = current;
-        current = current->next;
-    }
+    clear_bit(start, index);
+    while (get_bit(end, index) == 0) index++;
+    clear_bit(end, index);
 }
 
 /**
@@ -116,49 +96,36 @@ void mem_free(void* block) {
  * fails.
  */
 void* mem_resize(void* block, size_t size) {
-    Block* current = firstBlock;
-    while (current != NULL && current->address != block) {
-        current = current->next;
+    if(size == 0){
+        mem_free(block);
+        return NULL;
+    }
+    if (!block) return mem_alloc(size);
+
+    size_t startIndex = block - memoryPool;
+    if (startIndex >= memorySize || !get_bit(start, startIndex)) return NULL;
+
+    size_t endIndex = startIndex;
+    while (!get_bit(end, endIndex)) endIndex++;
+    mem_free(block);
+    void* resizedBlock = mem_alloc(size);
+    
+    if (!resizedBlock) {
+        set_bit(start, startIndex);
+        set_bit(end, endIndex);
+        return NULL;
     }
 
-    if (!current) return NULL;
+    if (resizedBlock == block)
+        return block;
 
-    void* oldPtr = current->address;
-    size_t oldSize = current->size;
-    mem_free(block);
-    void* newBlock = mem_alloc(size);
+    else {
+        size_t sizeToReplace = (endIndex - startIndex + 1);
+        size_t minSize = (size < sizeToReplace) ? size : sizeToReplace;
 
-    if (!newBlock) return NULL;
-    size_t minSize = (oldSize < size) ? oldSize : size;
-    memcpy(newBlock, oldPtr, minSize);
-    return newBlock;
-
-    // if (!block) {
-    //     return mem_alloc(size);
-    // }
-
-    // if (size == 0) {
-    //     mem_free(block);
-    //     return NULL;
-    // }
-
-    // Block* current = firstBlock;
-    // while (current) {
-    //     if (current->address == block) {
-    //         if (size <= current->size) {
-    //             return block;
-    //         }
-
-    //         void* newBlock = mem_alloc(size);
-    //         if (newBlock) {
-    //             memcpy(newBlock, block, current->size);
-    //             mem_free(block);
-    //         }
-    //         return newBlock;
-    //     }
-    //     current = current->next;
-    // }
-    // return NULL;
+        memcpy(resizedBlock, block, minSize);
+        return resizedBlock;
+    }
 }
 
 /**
@@ -166,12 +133,8 @@ void* mem_resize(void* block, size_t size) {
  * resetting the memory manager state.
  */
 void mem_deinit() {
-    while (firstBlock) {
-        Block* block = firstBlock;
-        firstBlock = firstBlock->next;
-        free(block);
-    }
-    free(memory);
-    memory = NULL;
+    free(start);
+    free(end);
+    free(memoryPool);
     memorySize = 0;
 }
