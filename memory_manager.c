@@ -1,5 +1,7 @@
 #include "memory_manager.h"
 
+
+
 void* memoryPool = NULL;
 size_t memorySize = 0;
 unsigned char* start = NULL;
@@ -77,11 +79,13 @@ void* mem_alloc(size_t size) {
  * @param block A pointer to the memory block to free.
  */
 void mem_free(void* block) {
-    if(!block) return;
+    if (!block) return;
+
     size_t index = block - memoryPool;
     if (index >= memorySize || get_bit(start, index) != 1) {
         return;
     }
+
     clear_bit(start, index);
     while (get_bit(end, index) == 0) index++;
     clear_bit(end, index);
@@ -96,7 +100,7 @@ void mem_free(void* block) {
  * fails.
  */
 void* mem_resize(void* block, size_t size) {
-    if(size == 0){
+    if (size == 0) {
         mem_free(block);
         return NULL;
     }
@@ -109,7 +113,7 @@ void* mem_resize(void* block, size_t size) {
     while (!get_bit(end, endIndex)) endIndex++;
     mem_free(block);
     void* resizedBlock = mem_alloc(size);
-    
+
     if (!resizedBlock) {
         set_bit(start, startIndex);
         set_bit(end, endIndex);
