@@ -1,7 +1,5 @@
 #include "memory_manager.h"
 
-
-
 void* memoryPool = NULL;
 size_t memorySize = 0;
 unsigned char* start = NULL;
@@ -49,7 +47,8 @@ void mem_init(size_t size) {
  * fails.
  */
 void* mem_alloc(size_t size) {
-    if (size == 0 || size > memorySize) return NULL;
+    if (size > memorySize) return NULL;
+    if (size == 0) return memoryPool;
     size_t nrOfEmptySegments = 0;
     bool isEmpty = true;
 
