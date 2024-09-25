@@ -34,7 +34,7 @@ void list_insert(Node **head, int data) {
             current = current->next;
         }
         current->next = newNode;
-        current->next = data;
+        current->next->data = data;
     }
 }
 
