@@ -22,9 +22,20 @@ void list_insert(Node **head, int data) {
         printf_red("Memory allocation failed\n");
         return;
     }
-    newNode->data = data;
-    newNode->next = *head;
-    *head = newNode;
+
+    if(*head == NULL){
+        newNode->data = data;
+        newNode->next = *head;
+        *head = newNode;
+    }
+    else {
+        Node* current = *head;
+        while(current->next != NULL){
+            current = current->next;
+        }
+        current->next = newNode;
+        current->next = data;
+    }
 }
 
 /**
@@ -158,7 +169,7 @@ void list_display(Node **head) {
  * @param startNode A pointer to the starting node of the range.
  * @param endNode A pointer to the ending node of the range.
  */
-void list_display_select(Node **head, Node *startNode, Node *endNode) {
+void list_display_range(Node **head, Node *startNode, Node *endNode) {
     Node *current = startNode;
     if (current == NULL) {
         printf("NULL");
