@@ -48,7 +48,7 @@ void mem_init(size_t size) {
  */
 void* mem_alloc(size_t size) {
     if (size > memorySize) return NULL;
-    if (size == 0) return memoryPool;
+    if (size == 0) return memoryPool; // :(
     size_t nrOfEmptySegments = 0;
     bool isEmpty = true;
 
